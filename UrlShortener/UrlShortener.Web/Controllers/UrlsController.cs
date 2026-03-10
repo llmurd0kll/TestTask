@@ -89,7 +89,7 @@ namespace UrlShortener.Web.Controllers
             // Кодируем URL в ASCII (один раз)
             var encoded = Uri.EscapeUriString(item.LongUrl);
 
-            // Возвращаем РОВНО то, что Kestrel может положить в заголовок
+            // Возвращаем то, что Kestrel может положить в заголовок
             return Redirect(encoded);
             }
         }
