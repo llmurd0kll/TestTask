@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using UrlShortener.Web.Data;
 using UrlShortener.Web.Models;
 
@@ -7,13 +8,14 @@ namespace UrlShortener.Web.Services
     public class UrlService
         {
         private readonly AppDbContext _db;
+        private readonly IMemoryCache _cache;
 
-        public UrlService(AppDbContext db)
+        public UrlService(AppDbContext db, IMemoryCache cache)
             {
-            // Почему: сервис работает с БД, но не создаёт её сам.
-            // DbContext передаётся через DI, чтобы можно было легко менять провайдер
-            // (MySQL → InMemory → SQLite) и тестировать сервис изолированно.
+            // Почему: сервис получает зависимости через DI, чтобы быть тестируемым
+            // и не зависеть от конкретной реализации БД или кэша.
             _db = db;
+            _cache = cache;
             }
 
         /// <summary>
@@ -23,16 +25,14 @@ namespace UrlShortener.Web.Services
         /// </summary>
         public async Task<ShortUrl> CreateAsync(string longUrl)
             {
-            // Почему: проверяем URL здесь, чтобы не сохранять в БД мусор.
-            // Это защита от ошибок пользователя и потенциальных XSS/инъекций.
+            // Почему: валидация на уровне сервиса защищает БД от мусорных данных.
             if (!Uri.IsWellFormedUriString(longUrl, UriKind.Absolute))
                 throw new ArgumentException("Некорректный URL");
 
             string code;
 
-            // Почему: короткий код должен быть уникальным.
-            // Даже при криптостойкой генерации возможны коллизии,
-            // поэтому проверяем в цикле, пока не найдём свободный код.
+            // Почему: даже криптостойкий генератор может дать коллизию,
+            // поэтому проверяем уникальность в цикле.
             do
                 {
                 code = CodeGenerator.GenerateShortCode();
@@ -47,7 +47,7 @@ namespace UrlShortener.Web.Services
                 Clicks = 0
                 };
 
-            // Почему: AddAsync не нужен — Add достаточно, EF сам отслеживает сущность.
+            // Почему: Add достаточно — EF сам отслеживает сущность.
             _db.ShortUrls.Add(entity);
             await _db.SaveChangesAsync(); // Почему: сохраняем сразу, чтобы код стал доступен.
 
@@ -55,32 +55,23 @@ namespace UrlShortener.Web.Services
             }
 
         /// <summary>
-        /// Возвращает ссылку по короткому коду и увеличивает счётчик переходов.
-        /// Почему: ТЗ требует считать переходы, и это логично делать в одном методе,
-        /// чтобы избежать гонок и двойных запросов.
+        /// Возвращает ссылку и увеличивает счётчик переходов.
+        /// Почему: метод нужен для совместимости, но логика вынесена в отдельные методы.
         /// </summary>
         public async Task<ShortUrl?> GetByCodeAndIncrementAsync(string code)
             {
-            // Почему: FirstOrDefaultAsync быстрее, чем SingleOrDefaultAsync,
-            // и не бросает исключение при дубликатах (которых быть не должно).
-            var item = await _db.ShortUrls.FirstOrDefaultAsync(x => x.ShortCode == code);
-
+            var item = await GetByCodeAsync(code);
             if (item == null)
                 return null;
 
-            // Почему: инкрементируем здесь, а не в контроллере —
-            // бизнес‑логика должна быть в сервисе.
-            item.Clicks++;
-
-            await _db.SaveChangesAsync(); // Почему: фиксируем переход сразу.
-
+            await IncrementClicksAsync(code);
+            item.Clicks += 1;
             return item;
             }
 
         /// <summary>
-        /// Получить все записи для таблицы.
-        /// Почему: сортировка по CreatedAt делает вывод более удобным —
-        /// новые ссылки сверху.
+        /// Получить все записи.
+        /// Почему: сортировка по CreatedAt делает вывод удобным — новые ссылки сверху.
         /// </summary>
         public async Task<List<ShortUrl>> GetAllAsync()
             {
@@ -91,41 +82,70 @@ namespace UrlShortener.Web.Services
 
         /// <summary>
         /// Обновить длинный URL.
-        /// Почему: редактирование — часть требований ТЗ.
+        /// Почему: сервис отвечает за валидацию и изменение данных.
         /// </summary>
         public async Task UpdateAsync(int id, string newUrl)
             {
-            // Почему: повторяем валидацию — нельзя доверять данным из формы.
             if (!Uri.IsWellFormedUriString(newUrl, UriKind.Absolute))
                 throw new ArgumentException("Некорректный URL");
 
             var item = await _db.ShortUrls.FindAsync(id);
 
-            // Почему: FindAsync быстрее, чем FirstOrDefaultAsync,
-            // так как ищет по первичному ключу.
+            // Почему: FindAsync быстрее, так как ищет по первичному ключу.
             if (item == null)
                 throw new Exception("Запись не найдена");
 
             item.LongUrl = newUrl;
 
-            await _db.SaveChangesAsync(); // Почему: сохраняем сразу, чтобы изменения были видны.
+            await _db.SaveChangesAsync(); // Почему: изменения должны быть видны сразу.
             }
 
         /// <summary>
         /// Удалить запись.
-        /// Почему: удаление — простая операция, но важно проверять существование.
+        /// Почему: проверяем существование, чтобы не бросать исключения без необходимости.
         /// </summary>
         public async Task DeleteAsync(int id)
             {
             var item = await _db.ShortUrls.FindAsync(id);
 
-            // Почему: если записи нет — просто выходим.
-            // Это упрощает логику контроллера.
             if (item == null)
                 return;
 
             _db.ShortUrls.Remove(item);
             await _db.SaveChangesAsync();
+            }
+
+        /// <summary>
+        /// Получить ссылку по короткому коду.
+        /// Почему: это горячий путь (редиректы), поэтому используем кэш,
+        /// чтобы снизить нагрузку на БД в десятки раз.
+        /// </summary>
+        public async Task<ShortUrl?> GetByCodeAsync(string code)
+            {
+            return await _cache.GetOrCreateAsync($"short:{code}", async entry =>
+            {
+                // Почему: TTL 1 минута — оптимальный баланс между свежестью и производительностью.
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1);
+
+                return await _db.ShortUrls
+                    .AsNoTracking() // Почему: чтение, трекинг не нужен.
+                    .FirstOrDefaultAsync(x => x.ShortCode == code);
+            });
+            }
+
+        /// <summary>
+        /// Увеличивает счётчик переходов.
+        /// Почему: используем прямой SQL, чтобы избежать накладных расходов EF
+        /// и ускорить операцию под высокой нагрузкой.
+        /// </summary>
+        public async Task IncrementClicksAsync(string code)
+            {
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE ShortUrls SET Clicks = Clicks + 1 WHERE ShortCode = {code}");
+
+            // Почему: данные изменились — кэш нужно сбросить,
+            // иначе пользователь увидит устаревшее значение.
+            _cache.Remove($"short:{code}");
             }
         }
     }

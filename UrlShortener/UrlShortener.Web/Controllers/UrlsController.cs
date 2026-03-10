@@ -9,16 +9,16 @@ namespace UrlShortener.Web.Controllers
 
         public UrlsController(UrlService service)
             {
-            // Почему: контроллер не должен знать, как работает бизнес‑логика.
-            // Он получает готовый сервис через DI, чтобы оставаться тонким и тестируемым.
+            // Почему: контроллер получает сервис через DI, чтобы оставаться тонким
+            // и не зависеть от деталей реализации бизнес‑логики.
             _service = service;
             }
 
         // GET: /Urls
         public async Task<IActionResult> Index()
             {
-            // Почему: список ссылок нужен для отображения таблицы на главной странице.
-            // Контроллер не фильтрует и не сортирует — это ответственность сервиса.
+            // Почему: контроллер не должен заниматься бизнес‑логикой.
+            // Он просто запрашивает данные у сервиса и передаёт их в представление.
             var items = await _service.GetAllAsync();
             return View(items);
             }
@@ -27,8 +27,8 @@ namespace UrlShortener.Web.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(string longUrl)
             {
-            // Почему: пустой URL — частая ошибка пользователя.
-            // Проверяем здесь, чтобы не нагружать сервис лишними вызовами.
+            // Почему: проверяем пустой ввод здесь, чтобы не нагружать сервис
+            // и сразу дать пользователю понятную ошибку.
             if (string.IsNullOrWhiteSpace(longUrl))
                 {
                 TempData["Error"] = "Введите URL";
@@ -37,13 +37,13 @@ namespace UrlShortener.Web.Controllers
 
             try
                 {
-                // Почему: вся логика проверки и генерации кода находится в сервисе.
-                // Контроллер только вызывает операцию.
+                // Почему: вся логика валидации и генерации кода находится в сервисе.
                 await _service.CreateAsync(longUrl);
                 }
             catch (Exception ex)
                 {
-                // Почему: ошибки должны отображаться пользователю, но не ломать приложение.
+                // Почему: ошибки должны быть показаны пользователю,
+                // но не должны приводить к падению приложения.
                 TempData["Error"] = ex.Message;
                 }
 
@@ -53,13 +53,13 @@ namespace UrlShortener.Web.Controllers
         // GET: /Urls/Edit/5
         public async Task<IActionResult> Edit(int id)
             {
-            // Почему: сервис возвращает все ссылки, а не одну.
+            // Почему: сервис возвращает список, а не одну запись.
             // Это упрощает сервис, но требует фильтрации здесь.
             var items = await _service.GetAllAsync();
             var item = items.FirstOrDefault(x => x.Id == id);
 
-            // Почему: если ссылка не найдена — возвращаем 404.
-            // Это стандарт поведения MVC.
+            // Почему: если запись не найдена — возвращаем 404,
+            // это стандарт поведения MVC.
             if (item == null)
                 return NotFound();
 
@@ -77,7 +77,8 @@ namespace UrlShortener.Web.Controllers
                 }
             catch (Exception ex)
                 {
-                // Почему: ошибки должны быть видны пользователю, но не прерывать работу сайта.
+                // Почему: ошибки должны быть видны пользователю,
+                // но не должны прерывать работу сайта.
                 TempData["Error"] = ex.Message;
                 }
 
@@ -88,7 +89,7 @@ namespace UrlShortener.Web.Controllers
         [HttpPost]
         public async Task<IActionResult> Delete(int id)
             {
-            // Почему: удаление — простая операция, контроллер не должен знать деталей.
+            // Почему: контроллер не должен знать, как именно удаляется запись.
             await _service.DeleteAsync(id);
             return RedirectToAction("Index");
             }
@@ -97,20 +98,19 @@ namespace UrlShortener.Web.Controllers
         [Route("r/{code}")]
         public async Task<IActionResult> RedirectToLong(string code)
             {
-            // Почему: при переходе нужно увеличить счётчик кликов.
-            // Это делается в сервисе, чтобы контроллер оставался тонким.
-            var item = await _service.GetByCodeAndIncrementAsync(code);
+            // Почему: сначала читаем ссылку — это горячий путь,
+            // и здесь может работать кэш.
+            var item = await _service.GetByCodeAsync(code);
 
-            // Почему: если код не найден — возвращаем 404, как требует HTTP‑спецификация.
             if (item == null)
                 return NotFound();
 
-            // Почему: Kestrel не принимает не‑ASCII символы в заголовке Location.
-            // Поэтому URL нужно закодировать заранее, иначе сервер упадёт.
-            var encoded = Uri.EscapeUriString(item.LongUrl);
+            // Почему: инкремент вынесен отдельно — это позволяет
+            // легко заменить его на батчинг или очередь.
+            await _service.IncrementClicksAsync(code);
 
-            // Почему: RedirectResult сам формирует заголовок Location.
-            // Мы передаём уже безопасный ASCII‑URL.
+            // Почему: EscapeUriString защищает от некорректных символов в URL.
+            var encoded = Uri.EscapeUriString(item.LongUrl);
             return Redirect(encoded);
             }
         }

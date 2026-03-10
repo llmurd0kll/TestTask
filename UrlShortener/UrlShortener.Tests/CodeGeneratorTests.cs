@@ -1,13 +1,15 @@
 ﻿using UrlShortener.Web.Services;
-using Xunit;
 
 public class CodeGeneratorTests
     {
     [Fact]
-    public void GenerateShortCode_ShouldReturn8CharString()
+    public void GenerateShortCode_ShouldReturn10CharString()
         {
+        // Почему: длина кода увеличена с 8 до 10 символов,
+        // чтобы снизить вероятность коллизий при высокой нагрузке
+        // (1000+ запросов в секунду и миллионы записей в БД).
         var code = CodeGenerator.GenerateShortCode();
 
-        Assert.Equal(8, code.Length);
+        Assert.Equal(10, code.Length);
         }
     }
