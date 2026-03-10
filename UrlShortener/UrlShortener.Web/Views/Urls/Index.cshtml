@@ -1,0 +1,53 @@
+﻿@model List<UrlShortener.Web.Models.ShortUrl>
+
+@{
+    ViewData["Title"] = "Список ссылок";
+    }
+
+<h2>Сокращение URL</h2>
+
+@if (TempData["Error"] != null)
+    {
+    <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+<form method="post" asp-action="Create">
+    <div class="input-group mb-3">
+        <input type="text" name="longUrl" class="form-control" placeholder="Введите длинный URL" />
+        <button class="btn btn-primary" type="submit">Создать</button>
+    </div>
+</form>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Длинный URL</th>
+            <th>Короткий URL</th>
+            <th>Дата создания</th>
+            <th>Переходы</th>
+            <th>Управление</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+            {
+            <tr>
+                <td>@item.LongUrl</td>
+                <td>
+                    <a href="/@item.ShortCode" target="_blank">
+                        @($"{Context.Request.Scheme}://{Context.Request.Host}/{item.ShortCode}")
+                    </a>
+                </td>
+                <td>@item.CreatedAt.ToLocalTime()</td>
+                <td>@item.Clicks</td>
+                <td>
+                    <a class="btn btn-sm btn-warning" asp-action="Edit" asp-route-id="@item.Id">Редактировать</a>
+
+                    <form method="post" asp-action="Delete" asp-route-id="@item.Id" style="display:inline;">
+                        <button class="btn btn-sm btn-danger" type="submit">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+            }
+    </tbody>
+</table>

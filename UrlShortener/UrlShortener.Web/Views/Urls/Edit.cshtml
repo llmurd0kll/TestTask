@@ -1,0 +1,17 @@
+﻿@model UrlShortener.Web.Models.ShortUrl
+
+@{
+    ViewData["Title"] = "Редактирование";
+    }
+
+<h2>Редактировать ссылку</h2>
+
+<form method="post" asp-action="Edit" asp-route-id="@Model.Id">
+    <div class="mb-3">
+        <label class="form-label">Длинный URL</label>
+        <input type="text" name="longUrl" class="form-control" value="@Model.LongUrl" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">Сохранить</button>
+    <a class="btn btn-secondary" asp-action="Index">Назад</a>
+</form>

@@ -1,29 +1,50 @@
+using Microsoft.EntityFrameworkCore;
+using UrlShortener.Web.Data;
+using UrlShortener.Web.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Добавляем MVC
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<UrlService>();
+
+// Подключаем DbContext с MySQL
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    options.UseMySql(
+        connectionString,
+        new MySqlServerVersion(new Version(10, 11, 16)) // версия MariaDB
+    );
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Автоматическое применение миграций при старте
+using (var scope = app.Services.CreateScope())
+    {
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+    }
+
+// Стандартный пайплайн
 if (!app.Environment.IsDevelopment())
     {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
     }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+
 app.UseRouting();
 
 app.UseAuthorization();
 
-app.MapStaticAssets();
-
+// Маршруты MVC
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
-
+    pattern: "{controller=Urls}/{action=Index}/{id?}");
 
 app.Run();
