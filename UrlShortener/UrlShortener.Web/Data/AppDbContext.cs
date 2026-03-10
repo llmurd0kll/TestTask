@@ -8,16 +8,21 @@ namespace UrlShortener.Web.Data
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
             {
+            // Почему: DbContextOptions передаются через DI, чтобы можно было
+            // легко менять провайдер БД (MySQL → InMemory → SQLite) без изменения кода.
             }
 
-        // Таблица с короткими ссылками
+        // Почему: отдельная таблица для коротких ссылок.
+        // EF Core сам создаёт таблицу на основе модели ShortUrl.
         public DbSet<ShortUrl> ShortUrls { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
             {
             base.OnModelCreating(modelBuilder);
 
-            // Индекс по ShortCode, чтобы быстро искать по короткому коду
+            // Почему: поиск по короткому коду — самая частая операция в приложении.
+            // Индекс ускоряет SELECT r/{code} в десятки раз.
+            // Уникальность гарантирует, что два разных URL не получат одинаковый код.
             modelBuilder.Entity<ShortUrl>()
                 .HasIndex(x => x.ShortCode)
                 .IsUnique();

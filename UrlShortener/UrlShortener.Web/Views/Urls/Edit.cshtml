@@ -2,16 +2,24 @@
 
 @{
     ViewData["Title"] = "Редактирование";
+    // Почему: задаём заголовок страницы, чтобы он корректно отображался в layout.
     }
 
 <h2>Редактировать ссылку</h2>
 
+<!-- Почему: форма отправляется POST‑запросом, чтобы изменения не попадали в URL
+     и чтобы избежать случайного редактирования через GET. -->
 <form method="post" asp-action="Edit" asp-route-id="@Model.Id">
     <div class="mb-3">
         <label class="form-label">Длинный URL</label>
+
+        <!-- Почему: показываем текущий URL, чтобы пользователь мог его исправить,
+             а не вводить заново. -->
         <input type="text" name="longUrl" class="form-control" value="@Model.LongUrl" />
     </div>
 
+    <!-- Почему: кнопка "Сохранить" отправляет форму, а "Назад" ведёт на список,
+         чтобы пользователь не терял контекст. -->
     <button class="btn btn-primary" type="submit">Сохранить</button>
     <a class="btn btn-secondary" asp-action="Index">Назад</a>
 </form>

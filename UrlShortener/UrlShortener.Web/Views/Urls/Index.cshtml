@@ -2,16 +2,21 @@
 
 @{
     ViewData["Title"] = "Список ссылок";
+    // Почему: задаём заголовок страницы, чтобы он отображался в layout и вкладке браузера.
     }
 
 <h2>Сокращение URL</h2>
 
 @if (TempData["Error"] != null)
     {
+    <!-- Почему: TempData используется для отображения ошибок после редиректа.
+         Это позволяет показывать сообщения без сохранения состояния в модели. -->
     <div class="alert alert-danger">@TempData["Error"]</div>
     }
 
 <form method="post" asp-action="Create">
+    <!-- Почему: форма отправляется POST‑запросом, чтобы не передавать URL в строке запроса
+         и избежать проблем с длинными строками и кодировкой. -->
     <div class="input-group mb-3">
         <input type="text" name="longUrl" class="form-control" placeholder="Введите длинный URL" />
         <button class="btn btn-primary" type="submit">Создать</button>
@@ -33,16 +38,28 @@
             {
             <tr>
                 <td>@item.LongUrl</td>
+
                 <td>
+                    <!-- Почему: отображаем полный короткий URL, чтобы пользователь мог скопировать его.
+                         Используем Context.Request, чтобы ссылка корректно работала на любом домене. -->
                     <a href="/r/@item.ShortCode" target="_blank">
                         @($"{Context.Request.Scheme}://{Context.Request.Host}/r/{item.ShortCode}")
                     </a>
                 </td>
+
+                <!-- Почему: ToLocalTime() делает дату понятной пользователю,
+                     а не в UTC, который используется в базе. -->
                 <td>@item.CreatedAt.ToLocalTime()</td>
+
                 <td>@item.Clicks</td>
+
                 <td>
+                    <!-- Почему: редактирование вынесено в отдельную страницу,
+                         чтобы не усложнять интерфейс таблицы. -->
                     <a class="btn btn-sm btn-warning" asp-action="Edit" asp-route-id="@item.Id">Редактировать</a>
 
+                    <!-- Почему: удаление через POST предотвращает случайное удаление по GET
+                         и соответствует REST‑подходу. -->
                     <form method="post" asp-action="Delete" asp-route-id="@item.Id" style="display:inline;">
                         <button class="btn btn-sm btn-danger" type="submit">Удалить</button>
                     </form>
