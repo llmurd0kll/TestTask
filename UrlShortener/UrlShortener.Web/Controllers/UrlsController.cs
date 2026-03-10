@@ -78,7 +78,7 @@ namespace UrlShortener.Web.Controllers
             }
 
         // GET: /{shortCode}
-        [HttpGet("/{code}")]
+        [Route("r/{code}")]
         public async Task<IActionResult> RedirectToLong(string code)
             {
             var item = await _service.GetByCodeAndIncrementAsync(code);
@@ -86,7 +86,11 @@ namespace UrlShortener.Web.Controllers
             if (item == null)
                 return NotFound();
 
-            return Redirect(item.LongUrl);
+            // Кодируем URL в ASCII (один раз)
+            var encoded = Uri.EscapeUriString(item.LongUrl);
+
+            // Возвращаем РОВНО то, что Kestrel может положить в заголовок
+            return Redirect(encoded);
             }
         }
     }

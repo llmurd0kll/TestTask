@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<UrlService>();
 
-// Подключаем DbContext с MySQL
+// Подключаем DbContext с SQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -43,6 +43,10 @@ app.UseRouting();
 app.UseAuthorization();
 
 // Маршруты MVC
+// ВАЖНО: включаем атрибутные маршруты
+app.MapControllers();
+
+// ВАЖНО: обычный MVC маршрут
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Urls}/{action=Index}/{id?}");

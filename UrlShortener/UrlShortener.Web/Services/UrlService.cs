@@ -19,6 +19,7 @@ namespace UrlShortener.Web.Services
         /// </summary>
         public async Task<ShortUrl> CreateAsync(string longUrl)
             {
+
             if (!Uri.IsWellFormedUriString(longUrl, UriKind.Absolute))
                 throw new ArgumentException("Некорректный URL");
 
@@ -51,11 +52,14 @@ namespace UrlShortener.Web.Services
         /// </summary>
         public async Task<ShortUrl?> GetByCodeAndIncrementAsync(string code)
             {
+            Console.WriteLine(">>> Searching for code = [" + code + "]");
             var item = await _db.ShortUrls.FirstOrDefaultAsync(x => x.ShortCode == code);
 
             if (item == null)
+                {
+                Console.WriteLine(">>> NOT FOUND");
                 return null;
-
+                }
             item.Clicks++;
             await _db.SaveChangesAsync();
 
@@ -77,6 +81,7 @@ namespace UrlShortener.Web.Services
         /// </summary>
         public async Task UpdateAsync(int id, string newUrl)
             {
+
             if (!Uri.IsWellFormedUriString(newUrl, UriKind.Absolute))
                 throw new ArgumentException("Некорректный URL");
 
@@ -100,5 +105,6 @@ namespace UrlShortener.Web.Services
             _db.ShortUrls.Remove(item);
             await _db.SaveChangesAsync();
             }
+
         }
     }
